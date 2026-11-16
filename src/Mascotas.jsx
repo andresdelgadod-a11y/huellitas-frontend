@@ -103,7 +103,7 @@ export default function Mascotas() {
       body: JSON.stringify(datos)
     });
     if (!respuesta.ok) throw new Error('Error al registrar la mascota');
-    setMascotas(prev => [...prev, null].slice(0, -1));
+    
     return respuesta.json();
   };
 
