@@ -4,6 +4,8 @@ const API_URL = 'http://127.0.0.1:8000/api/refugios/';
 
 export default function Refugios() {
   const [refugios, setRefugios] = useState([]);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState(null);
   const [form, setForm] = useState({
     nombre: '',
     direccion: '',
@@ -13,8 +15,17 @@ export default function Refugios() {
 
   useEffect(() => {
     const fetchRefugios = async () => {
-      const respuesta = await fetch(API_URL);
-      setRefugios(await respuesta.json());
+      setCargando(true);
+      try {
+        const respuesta = await fetch(API_URL);
+        if (!respuesta.ok) throw new Error("No se pudo cargar los refugios");
+        setRefugios(await respuesta.json());
+        setError(null);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setCargando(false);
+      }
     };
     fetchRefugios();
   }, []);
@@ -25,18 +36,43 @@ export default function Refugios() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const respuesta = await fetch(API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form)
-    });
-    setRefugios([...refugios, await respuesta.json()]);
-    setForm({ nombre: '', direccion: '', telefono: '', ciudad: '' });
+    setCargando(true);
+    try {
+      const respuesta = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form)
+      });
+      if (!respuesta.ok) throw new Error("Error al registrar el refugio");
+      setRefugios([...refugios, await respuesta.json()]);
+      setForm({ nombre: '', direccion: '', telefono: '', ciudad: '' });
+      setError(null);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setCargando(false);
+    }
   };
+
+  const handleEliminar = async (id) => {
+    if (!window.confirm("¿Seguro que quieres eliminar este refugio?")) return;
+    try {
+      const respuesta = await fetch(`${API_URL}${id}/`, { method: 'DELETE' });
+      if (!respuesta.ok) throw new Error("No se pudo eliminar");
+      setRefugios(refugios.filter(r => r.id !== id));
+      setError(null);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  if (cargando && refugios.length === 0) return <p>🔄 Cargando refugios...</p>;
 
   return (
     <div style={{ padding: '20px', maxWidth: '1000px', margin: '0 auto' }}>
       <h2>🏠 Refugios</h2>
+
+      {error && <p style={{ color: 'red' }}>❌ Error: {error}</p>}
 
       <div style={{ background: '#f5f5f5', padding: '20px', borderRadius: '8px', marginBottom: '30px' }}>
         <h3>Registrar nuevo refugio</h3>
@@ -47,8 +83,8 @@ export default function Refugios() {
             <input type="text" name="telefono" placeholder="Teléfono" value={form.telefono} onChange={handleChange} required />
             <input type="text" name="ciudad" placeholder="Ciudad" value={form.ciudad} onChange={handleChange} required />
           </div>
-          <button type="submit" style={{ padding: '8px 16px', background: '#3498db', color: 'white', border: 'none', borderRadius: '4px' }}>
-            ✅ Registrar Refugio
+          <button type="submit" disabled={cargando} style={{ padding: '8px 16px', background: '#3498db', color: 'white', border: 'none', borderRadius: '4px' }}>
+            {cargando ? 'Guardando...' : '✅ Registrar Refugio'}
           </button>
         </form>
       </div>
@@ -64,6 +100,7 @@ export default function Refugios() {
               <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Dirección</th>
               <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Teléfono</th>
               <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Ciudad</th>
+              <th style={{ padding: '10px', textAlign: 'center', borderBottom: '1px solid #ddd' }}>Acciones</th>
             </tr>
           </thead>
           <tbody>
@@ -73,6 +110,11 @@ export default function Refugios() {
                 <td style={{ padding: '10px', borderBottom: '1px solid #ddd' }}>{r.direccion}</td>
                 <td style={{ padding: '10px', borderBottom: '1px solid #ddd' }}>{r.telefono}</td>
                 <td style={{ padding: '10px', borderBottom: '1px solid #ddd' }}>{r.ciudad}</td>
+                <td style={{ padding: '10px', textAlign: 'center', borderBottom: '1px solid #ddd' }}>
+                  <button onClick={() => handleEliminar(r.id)} style={{ background: '#e74c3c', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}>
+                    🗑️ Eliminar
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
