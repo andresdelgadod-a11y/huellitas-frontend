@@ -3,18 +3,15 @@ import { useState, useEffect } from 'react';
 const API_MASCOTAS = 'http://127.0.0.1:8000/api/mascotas/';
 const API_REFUGIOS = 'http://127.0.0.1:8000/api/refugios/';
 
-const FORM_INICIAL = {
-  nombre: '',
-  tipo: '',
-  edad: '',
-  descripcion: '',
-  estado: 'adopcion',
-  ultima_ubicacion: '',
-  contacto: '',
-  refugio: ''
+const ADOPCION_INICIAL = { nombre: '', tipo: '', edad: '', descripcion: '', refugio: '' };
+const PERDIDA_INICIAL = {
+  nombre: '', tipo: '', edad: '', descripcion: '',
+  ultima_ubicacion: '', contacto: '', refugio: ''
 };
 
 const celda = { padding: '10px', borderBottom: '1px solid #ddd' };
+const caja = { padding: '20px', borderRadius: '8px', marginBottom: '30px' };
+const boton = { padding: '8px 16px', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' };
 
 function TablaMascotas({ lista, perdidas, onEliminar }) {
   if (lista.length === 0) {
@@ -58,7 +55,7 @@ function TablaMascotas({ lista, perdidas, onEliminar }) {
             <td style={{ ...celda, textAlign: 'center' }}>
               <button
                 onClick={() => onEliminar(m.id)}
-                style={{ background: '#e74c3c', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}
+                style={{ ...boton, background: '#e74c3c', padding: '5px 10px' }}
               >
                 🗑️ Eliminar
               </button>
@@ -75,7 +72,8 @@ export default function Mascotas() {
   const [refugios, setRefugios] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState(null);
-  const [form, setForm] = useState(FORM_INICIAL);
+  const [formAdopcion, setFormAdopcion] = useState(ADOPCION_INICIAL);
+  const [formPerdida, setFormPerdida] = useState(PERDIDA_INICIAL);
 
   useEffect(() => {
     const cargarDatos = async () => {
@@ -98,30 +96,51 @@ export default function Mascotas() {
     cargarDatos();
   }, []);
 
-  const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+  const registrar = async (datos) => {
+    const respuesta = await fetch(API_MASCOTAS, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(datos)
+    });
+    if (!respuesta.ok) throw new Error('Error al registrar la mascota');
+    setMascotas(prev => [...prev, null].slice(0, -1));
+    return respuesta.json();
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmitAdopcion = async (e) => {
     e.preventDefault();
     try {
-      const respuesta = await fetch(API_MASCOTAS, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          nombre: form.nombre,
-          tipo: form.tipo,
-          edad: Number(form.edad),
-          descripcion: form.descripcion,
-          estado: form.estado,
-          ultima_ubicacion: form.estado === 'perdida' ? form.ultima_ubicacion : '',
-          contacto: form.estado === 'perdida' ? form.contacto : '',
-          refugio: form.refugio ? Number(form.refugio) : null
-        })
+      const nueva = await registrar({
+        nombre: formAdopcion.nombre,
+        tipo: formAdopcion.tipo,
+        edad: Number(formAdopcion.edad),
+        descripcion: formAdopcion.descripcion,
+        estado: 'adopcion',
+        refugio: Number(formAdopcion.refugio)
       });
-      if (!respuesta.ok) throw new Error('Error al registrar la mascota');
-      setMascotas([...mascotas, await respuesta.json()]);
-      setForm(FORM_INICIAL);
+      setMascotas(prev => [...prev, nueva]);
+      setFormAdopcion(ADOPCION_INICIAL);
+      setError(null);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleSubmitPerdida = async (e) => {
+    e.preventDefault();
+    try {
+      const nueva = await registrar({
+        nombre: formPerdida.nombre,
+        tipo: formPerdida.tipo,
+        edad: Number(formPerdida.edad),
+        descripcion: formPerdida.descripcion,
+        estado: 'perdida',
+        ultima_ubicacion: formPerdida.ultima_ubicacion,
+        contacto: formPerdida.contacto,
+        refugio: formPerdida.refugio ? Number(formPerdida.refugio) : null
+      });
+      setMascotas(prev => [...prev, nueva]);
+      setFormPerdida(PERDIDA_INICIAL);
       setError(null);
     } catch (err) {
       setError(err.message);
@@ -133,18 +152,20 @@ export default function Mascotas() {
     try {
       const respuesta = await fetch(`${API_MASCOTAS}${id}/`, { method: 'DELETE' });
       if (!respuesta.ok) throw new Error('No se pudo eliminar');
-      setMascotas(mascotas.filter(m => m.id !== id));
+      setMascotas(prev => prev.filter(m => m.id !== id));
       setError(null);
     } catch (err) {
       setError(err.message);
     }
   };
 
+  const cambiarAdopcion = (e) => setFormAdopcion({ ...formAdopcion, [e.target.name]: e.target.value });
+  const cambiarPerdida = (e) => setFormPerdida({ ...formPerdida, [e.target.name]: e.target.value });
+
   if (cargando) return <p>🔄 Cargando mascotas...</p>;
 
   const enAdopcion = mascotas.filter(m => m.estado === 'adopcion');
   const perdidas = mascotas.filter(m => m.estado === 'perdida');
-  const esPerdida = form.estado === 'perdida';
 
   return (
     <div style={{ padding: '20px', maxWidth: '1000px', margin: '0 auto' }}>
@@ -152,47 +173,52 @@ export default function Mascotas() {
 
       {error && <p style={{ color: 'red' }}>❌ Error: {error}</p>}
 
-      <div style={{ background: '#f5f5f5', padding: '20px', borderRadius: '8px', marginBottom: '30px' }}>
-        <h3>Registrar mascota</h3>
-        <form onSubmit={handleSubmit}>
+      <div style={{ ...caja, background: '#f5f5f5' }}>
+        <h3>🏡 Registrar mascota en adopción</h3>
+        <form onSubmit={handleSubmitAdopcion}>
           <div style={{ display: 'grid', gap: '10px', marginBottom: '15px' }}>
-            <select name="estado" value={form.estado} onChange={handleChange}>
-              <option value="adopcion">En adopción</option>
-              <option value="perdida">Perdida</option>
-            </select>
-
-            <input type="text" name="nombre" placeholder="Nombre" value={form.nombre} onChange={handleChange} required />
-            <input type="text" name="tipo" placeholder="Tipo (perro, gato...)" value={form.tipo} onChange={handleChange} required />
-            <input type="number" name="edad" placeholder="Edad" min="0" value={form.edad} onChange={handleChange} required />
-            <input type="text" name="descripcion" placeholder="Descripción" value={form.descripcion} onChange={handleChange} required />
-
-            {esPerdida && (
-              <>
-                <input type="text" name="ultima_ubicacion" placeholder="Última ubicación donde se vio" value={form.ultima_ubicacion} onChange={handleChange} required />
-                <input type="text" name="contacto" placeholder="Teléfono de contacto" value={form.contacto} onChange={handleChange} required />
-              </>
-            )}
-
-            <select name="refugio" value={form.refugio} onChange={handleChange} required={!esPerdida}>
-              <option value="">
-                {esPerdida ? 'Sin refugio (opcional)' : 'Selecciona un refugio'}
-              </option>
+            <input type="text" name="nombre" placeholder="Nombre" value={formAdopcion.nombre} onChange={cambiarAdopcion} required />
+            <input type="text" name="tipo" placeholder="Tipo (perro, gato...)" value={formAdopcion.tipo} onChange={cambiarAdopcion} required />
+            <input type="number" name="edad" placeholder="Edad" min="0" value={formAdopcion.edad} onChange={cambiarAdopcion} required />
+            <input type="text" name="descripcion" placeholder="Descripción" value={formAdopcion.descripcion} onChange={cambiarAdopcion} required />
+            <select name="refugio" value={formAdopcion.refugio} onChange={cambiarAdopcion} required>
+              <option value="">Selecciona un refugio</option>
               {refugios.map(r => (
                 <option key={r.id} value={r.id}>{r.nombre}</option>
               ))}
             </select>
           </div>
-          <button type="submit" style={{ padding: '8px 16px', background: '#3498db', color: 'white', border: 'none', borderRadius: '4px' }}>
-            ✅ Registrar Mascota
+          <button type="submit" style={{ ...boton, background: '#3498db' }}>
+            ✅ Registrar para adopción
+          </button>
+        </form>
+      </div>
+
+      <div style={{ ...caja, background: '#fff4e5', border: '1px solid #f0c987' }}>
+        <h3>🔍 Reportar mascota perdida</h3>
+        <form onSubmit={handleSubmitPerdida}>
+          <div style={{ display: 'grid', gap: '10px', marginBottom: '15px' }}>
+            <input type="text" name="nombre" placeholder="Nombre de la mascota" value={formPerdida.nombre} onChange={cambiarPerdida} required />
+            <input type="text" name="tipo" placeholder="Tipo (perro, gato...)" value={formPerdida.tipo} onChange={cambiarPerdida} required />
+            <input type="number" name="edad" placeholder="Edad aproximada" min="0" value={formPerdida.edad} onChange={cambiarPerdida} required />
+            <input type="text" name="descripcion" placeholder="Descripción (color, raza, señas)" value={formPerdida.descripcion} onChange={cambiarPerdida} required />
+            <input type="text" name="ultima_ubicacion" placeholder="Última ubicación donde se vio" value={formPerdida.ultima_ubicacion} onChange={cambiarPerdida} required />
+            <input type="text" name="contacto" placeholder="Teléfono de contacto" value={formPerdida.contacto} onChange={cambiarPerdida} required />
+            <select name="refugio" value={formPerdida.refugio} onChange={cambiarPerdida}>
+              <option value="">Sin refugio (opcional)</option>
+              {refugios.map(r => (
+                <option key={r.id} value={r.id}>{r.nombre}</option>
+              ))}
+            </select>
+          </div>
+          <button type="submit" style={{ ...boton, background: '#e67e22' }}>
+            📢 Reportar mascota perdida
           </button>
         </form>
       </div>
 
       <h3>🏡 En adopción</h3>
       <TablaMascotas lista={enAdopcion} perdidas={false} onEliminar={handleEliminar} />
-
-      <h3>🔍 Mascotas perdidas</h3>
-       <TablaMascotas lista={enAdopcion} perdidas={false} onEliminar={handleEliminar} />
 
       <h3>🔍 Mascotas perdidas</h3>
       <TablaMascotas lista={perdidas} perdidas={true} onEliminar={handleEliminar} />
