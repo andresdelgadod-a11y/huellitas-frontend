@@ -192,3 +192,10 @@ export default function Mascotas() {
       <TablaMascotas lista={enAdopcion} perdidas={false} onEliminar={handleEliminar} />
 
       <h3>🔍 Mascotas perdidas</h3>
+       <TablaMascotas lista={enAdopcion} perdidas={false} onEliminar={handleEliminar} />
+
+      <h3>🔍 Mascotas perdidas</h3>
+      <TablaMascotas lista={perdidas} perdidas={true} onEliminar={handleEliminar} />
+    </div>
+  );
+}
