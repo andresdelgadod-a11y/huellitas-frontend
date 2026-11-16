@@ -102,7 +102,11 @@ export default function Mascotas() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(datos)
     });
-    if (!respuesta.ok) throw new Error('Error al registrar la mascota');
+    
+    if (!respuesta.ok) {
+  const detalle = await respuesta.text();
+  throw new Error('Error al registrar la mascota: ' + detalle);
+}
     
     return respuesta.json();
   };
